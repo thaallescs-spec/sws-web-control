@@ -1,0 +1,41 @@
+﻿SWS Web Control - setlist web para o REAPER
+============================================
+
+Controla a Region Playlist do SWS pelo celular/tablet: mostra a setlist,
+a música atual, o tempo restante, e permite iniciar, parar, pular e
+tocar a partir de qualquer música.
+
+PRECISA
+- REAPER (Windows)
+- Extensão SWS (https://www.sws-extension.org)
+- Um projeto com uma Region Playlist do SWS
+
+INSTALAR
+1. Feche o REAPER.
+2. Dê dois cliques em "Instalar.bat".
+3. Abra o REAPER e o projeto do show, e salve (Ctrl+S).
+4. No celular/tablet, na mesma rede Wi-Fi, abra o endereço que o
+   instalador mostrou (ex.: http://192.168.0.10:8080/playlist.html),
+   ou rode no REAPER a ação "SWS Web Control - QR code" e aponte a câmera.
+
+O instalador:
+- copia os arquivos para REAPER\Scripts\SWS Web Control
+- copia o playlist.html para REAPER\reaper_www_root
+- faz o script abrir junto com o REAPER (Scripts\__startup.lua)
+- cria a interface web do REAPER (se ainda não existir), com backup do reaper.ini
+
+USO
+- Toque numa música da lista e SEGURE "Tocar daqui" para começar o show dela.
+- PARAR precisa ser segurado (evita parar o show por um toque acidental).
+- INICIAR com o show tocando também precisa ser segurado (volta pra 1ª música).
+- Próxima/Anterior só funcionam com o show tocando, e pulam na hora.
+- A setlist é lida do projeto SALVO: depois de mudar a playlist no SWS,
+  salve o projeto. A página avisa quando há alterações não salvas.
+
+MAC (ou instalação pelo ReaPack, recomendada)
+Extensions > ReaPack > Import repositories... e cole:
+  https://raw.githubusercontent.com/thaallescs-spec/sws-web-control/main/index.xml
+Depois veja o README em https://github.com/thaallescs-spec/sws-web-control
+
+DESINSTALAR
+Feche o REAPER e dê dois cliques em "Desinstalar.bat".

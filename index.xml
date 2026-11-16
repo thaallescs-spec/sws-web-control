@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<index version="1" name="SWS Web Control">
+  <category name="Live">
+    <reapack name="SWS Web Control.lua" type="script" desc="SWS Web Control - setlist web (celular/tablet) para a Region Playlist do SWS">
+      <metadata>
+        <link rel="website">https://github.com/thaallescs-spec/sws-web-control</link>
+      </metadata>
+      <version name="2.1.0" author="Thalles" time="2026-11-16T13:12:06Z">
+        <changelog><![CDATA[Primeira versão no ReaPack: setlist web, tocar a partir de qualquer música (inclusive repetidas), layout para celular e tablet, QR code para abrir no celular.]]></changelog>
+        <source main="main">https://raw.githubusercontent.com/thaallescs-spec/sws-web-control/main/Live/SWS%20Web%20Control.lua</source>
+        <source file="playlist.html">https://raw.githubusercontent.com/thaallescs-spec/sws-web-control/main/Live/playlist.html</source>
+        <source file="qrencode.lua">https://raw.githubusercontent.com/thaallescs-spec/sws-web-control/main/Live/qrencode.lua</source>
+        <source file="qrencode-LICENSE.md">https://raw.githubusercontent.com/thaallescs-spec/sws-web-control/main/Live/qrencode-LICENSE.md</source>
+        <source file="SWS Web Control - QR code.lua" main="main">https://raw.githubusercontent.com/thaallescs-spec/sws-web-control/main/Live/SWS%20Web%20Control%20-%20QR%20code.lua</source>
+      </version>
+    </reapack>
+  </category>
+</index>
