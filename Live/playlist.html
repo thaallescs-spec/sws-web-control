@@ -49,6 +49,10 @@ nav button:active{filter:brightness(1.25)}
 button small{display:block;font-size:11px;font-weight:400;opacity:.85;margin-top:2px}
 button span{position:relative}
 .go{background:var(--go)}
+/* show tocando: INICIAR vira secundário (só serve para recomeçar do início) */
+#btnPlay.playing{background:#2c3a30;color:#cfe9d6;box-shadow:inset 0 0 0 2px #1fa74d55}
+nav button .ico{font-size:26px;line-height:1;display:block}
+footer .ico{font-size:17px;line-height:1}
 .stop{background:var(--stop)}
 .hold .fill{position:absolute;inset:0;background:rgba(255,255,255,.35);transform:scaleX(0);transform-origin:left}
 .hold.holding .fill{transform:scaleX(1);transition:transform var(--hold,600ms) linear}
@@ -90,6 +94,9 @@ footer{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
   background:var(--panel);border-top:1px solid var(--line);font-size:13px;color:var(--dim)}
 footer .dirty{color:var(--warn);flex-shrink:0;font-weight:700}
 footer #meta{flex:1}
+footer #plName{color:var(--text);font-weight:700}
+footer #plPos{font-variant-numeric:tabular-nums}
+@media (max-width:480px){ footer .txt{display:none} footer button{padding:8px 12px} }
 #meta{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ===== TELAS DEITADAS (tablet/celular): duas colunas, controles à esquerda e lista à direita ===== */
@@ -104,6 +111,12 @@ footer #meta{flex:1}
   #list{grid-area:list;min-height:0}
   footer{grid-area:foot}
   #sheet{left:auto;right:0;width:min(560px,58%);border-left:2px solid var(--go);border-radius:12px 0 0 0}
+  #current{font-size:clamp(28px,6.5vh,64px);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  #remain{font-size:clamp(34px,11vh,104px);line-height:1}
+  #next{font-size:clamp(17px,3vh,26px)}
+  #bar{height:10px}
+  .row{flex-direction:column;align-items:flex-start;gap:6px}
+  .side{text-align:left;font-size:clamp(14px,2.4vh,20px)}
 }
 /* celular deitado: pouca altura, tudo mais compacto */
 @media (orientation:landscape) and (max-height:520px){
@@ -161,9 +174,9 @@ footer button{background:#2a2d32;border:none;color:#fff;border-radius:6px;paddin
   </header>
 
   <nav>
-    <button id="btnPrev">⏮<small>anterior</small></button>
+    <button id="btnPrev"><span class="ico">⏮</span><small>anterior</small></button>
     <button id="btnPlay" class="go hold"><div class="fill"></div><span>▶ INICIAR<small id="playHint">toque</small></span></button>
-    <button id="btnNext">⏭<small>próxima</small></button>
+    <button id="btnNext"><span class="ico">⏭</span><small>próxima</small></button>
     <button id="btnStop" class="stop hold"><div class="fill"></div><span>⏹ PARAR<small>segure</small></span></button>
   </nav>
   </div>
@@ -181,9 +194,9 @@ footer button{background:#2a2d32;border:none;color:#fff;border-radius:6px;paddin
   </div>
 
   <footer>
-    <div id="meta">—</div>
+    <div id="meta"><b id="plName">—</b><span id="plPos"></span></div>
     <div id="dirty" class="dirty" hidden>⚠ não salvo</div>
-    <button id="btnRefresh">🔄 Atualizar</button>
+    <button id="btnRefresh" title="Reler a setlist do projeto salvo"><span class="ico">↻</span><span class="txt"> Atualizar</span></button>
   </footer>
 
 </div>
@@ -269,20 +282,18 @@ function render(){
   });
 
   // rodapé
+  // rodapé: nome da playlist + andamento (atualizado ao vivo em updateProgress)
   const meta = $("meta");
-  meta.textContent = "";
-  if(data){
-    const parts = [];
-    if(data.ok){
-      parts.push(dec(data.playlist) + (data.playlists > 1 ? " (de " + data.playlists + ")" : ""));
-      parts.push(items.length + " músicas · " + fmt(data.total));
-      if(data.missing && data.missing.length) parts.push(data.missing.length + " região(ões) não encontrada(s)");
-    }
-    parts.push("lido às " + data.readAt);
-    meta.append(parts.join(" · "));
-    meta.title = parts.join(" · ");
+  $("plName").textContent = data && data.ok ? dec(data.playlist) : "—";
+  const extra = [];
+  if(data && data.ok){
+    extra.push(items.length + " músicas · " + fmt(data.total));
+    if(data.missing && data.missing.length) extra.push(data.missing.length + " região(ões) da playlist não existem no projeto");
   }
+  if(data) extra.push("lido às " + data.readAt);
+  meta.title = extra.join(" · ");
   $("dirty").hidden = !(data && data.dirty);
+  updateProgress();
 }
 
 /* acha o item tocando; começa pelo atual e pelo seguinte, para regiões repetidas na setlist */
@@ -297,6 +308,19 @@ function findIndex(p){
   if(inside(cur + 1)) return cur + 1;      // andamento normal da setlist
   for(let i = 0; i < items.length; i++) if(inside(i)) return i;   // salto: 1ª ocorrência
   return -1;
+}
+
+/* "3/10 · 42%": música atual de quantas e quanto do show já passou (pelo tempo) */
+function updateProgress(){
+  const el = $("plPos");
+  if(!items.length){ el.textContent = ""; return; }
+  if(cur < 0){ el.textContent = " · 0/" + items.length; return; }
+  let done = 0;
+  for(let i = 0; i < cur; i++) done += items[i].duration;
+  done += Math.min(Math.max(pos - items[cur].start, 0), items[cur].end - items[cur].start);
+  const total = data && data.total > 0 ? data.total : 0;
+  const pct = total ? Math.min(100, Math.floor(done / total * 100)) : 0;
+  el.textContent = " · " + (cur + 1) + "/" + items.length + " · " + pct + "%";
 }
 
 function tick(){
@@ -332,7 +356,9 @@ function tick(){
     $("showLeft").textContent = data && data.ok ? fmt(data.total) : "--:--";
   }
 
+  updateProgress();
   const playing = isPlaying();
+  $("btnPlay").classList.toggle("playing", playing);
   $("stateLabel").textContent = playing ? "Tocando agora" : (playState === 2 || playState === 6) ? "Pausado em" : "Parado em";
   $("playHint").textContent = playing ? "segure p/ reiniciar" : "toque";
   $("btnNext").disabled = !playing;
