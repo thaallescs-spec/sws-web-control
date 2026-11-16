@@ -62,7 +62,18 @@ footer .ico{font-size:17px;line-height:1}
 }
 
 /* lista */
-#list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#lists{flex:1;display:flex;flex-direction:column;min-height:0}
+#tabs{display:flex;gap:6px;padding:8px 12px;background:#14161a;border-bottom:1px solid var(--line)}
+.tab{flex:1;border:none;border-radius:8px;padding:10px 6px;font-size:15px;font-weight:700;background:transparent;color:var(--dim);cursor:pointer}
+.tab.on{background:#2a2d32;color:#fff}
+#list,#rlist{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#list[hidden],#rlist[hidden]{display:none}
+.rgn .num{min-width:3ch;font-size:14px}
+.song.iso{background:var(--warn);color:#000}
+.song.iso .num,.song.iso .time{color:#000}
+#stateLabel.iso{color:var(--warn);font-weight:700}
+#sheetNote{font-size:14px;color:var(--dim);margin-bottom:8px;display:none}
+#sheetNote.show{display:block}
 .song{display:flex;align-items:center;gap:14px;padding:15px 20px;border-bottom:1px solid #1f2226;border-left:6px solid transparent}
 .num{min-width:2ch;color:var(--dim);font-variant-numeric:tabular-nums;text-align:right}
 .name{flex:1;font-size:21px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -108,7 +119,7 @@ footer #plPos{font-variant-numeric:tabular-nums}
   header{flex:1;display:flex;flex-direction:column;justify-content:center;border-bottom:none}
   nav{grid-template-columns:1fr 1fr;border-bottom:none}
   #btnPlay{order:1} #btnStop{order:2} #btnPrev{order:3} #btnNext{order:4}
-  #list{grid-area:list;min-height:0}
+  #lists{grid-area:list;min-height:0}
   footer{grid-area:foot}
   #sheet{left:auto;right:0;width:min(560px,58%);border-left:2px solid var(--go);border-radius:12px 0 0 0}
   #current{font-size:clamp(28px,6.5vh,64px);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -131,6 +142,8 @@ footer #plPos{font-variant-numeric:tabular-nums}
   nav button{padding:9px 6px;font-size:16px}
   nav button small{font-size:10px}
   .song{padding:10px 14px;gap:10px}
+  #tabs{padding:5px 8px}
+  .tab{padding:6px;font-size:13px}
   .name{font-size:17px}
   .time{font-size:15px}
   footer{padding:4px 10px}
@@ -181,15 +194,23 @@ footer button{background:#2a2d32;border:none;color:#fff;border-radius:6px;paddin
   </nav>
   </div>
 
-  <div id="list"><div id="empty">Aguardando o REAPER…</div></div>
+  <div id="lists">
+    <div id="tabs">
+      <button id="tabSet" class="tab on">Setlist</button>
+      <button id="tabRgn" class="tab">Regiões do projeto</button>
+    </div>
+    <div id="list"><div id="empty">Aguardando o REAPER…</div></div>
+    <div id="rlist" hidden></div>
+  </div>
 
   <div id="sheet">
     <div id="sheetTitle">Tocar a partir de</div>
     <div id="sheetName">—</div>
     <div id="sheetWarn">Projeto com alterações não salvas: a ordem pode não bater com a do SWS. Salve antes.</div>
+    <div id="sheetNote">Para o que estiver tocando, toca só esta região e para no fim dela. Não mexe na playlist.</div>
     <div class="sheetBtns">
       <button id="sheetCancel" class="cancel">Cancelar</button>
-      <button id="sheetGo" class="go hold"><div class="fill"></div><span>▶ TOCAR DAQUI<small>segure</small></span></button>
+      <button id="sheetGo" class="go hold"><div class="fill"></div><span><span id="sheetGoLabel">▶ TOCAR DAQUI</span><small>segure</small></span></button>
     </div>
   </div>
 
@@ -220,6 +241,7 @@ let playState = 0, pos = 0, posStr = "--";
 let lastTransportAt = 0, lastBeat = null, lastBeatAt = 0;
 let pending = null;          // { idx, until }: item que acabamos de mandar tocar (resolve músicas repetidas)
 let lastJump = null, picked = -1;
+let regions = [], isolatedId = null, wasIso = false, sheetMode = "set", tab = "set";
 const startedAt = Date.now();
 const $ = id => document.getElementById(id);
 
@@ -243,6 +265,7 @@ function onPlaylist(raw){
   try { data = JSON.parse(raw); }
   catch(e){ data = { ok:false, error:"Resposta inválida do REAPER." }; }
   items = data.ok ? data.items.map(it => ({ ...it, name: dec(it.name) })) : [];
+  regions = (data.regions || []).map(r => ({ ...r, name: dec(r.name) }));
   cur = -1;
   render();
   tick();
@@ -281,7 +304,8 @@ function render(){
     list.appendChild(row);
   });
 
-  // rodapé
+  renderRegions();
+
   // rodapé: nome da playlist + andamento (atualizado ao vivo em updateProgress)
   const meta = $("meta");
   $("plName").textContent = data && data.ok ? dec(data.playlist) : "—";
@@ -294,6 +318,43 @@ function render(){
   meta.title = extra.join(" · ");
   $("dirty").hidden = !(data && data.dirty);
   updateProgress();
+}
+
+function renderRegions(){
+  const box = $("rlist");
+  box.textContent = "";
+  if(!regions.length){
+    const d = document.createElement("div");
+    d.className = "emptyR"; d.id = "emptyR";
+    d.textContent = data ? "Nenhuma região no projeto." : "Aguardando o REAPER…";
+    d.style.cssText = "padding:40px 20px;text-align:center;color:var(--dim);font-size:18px";
+    box.appendChild(d);
+    return;
+  }
+  regions.forEach(r => {
+    const row = document.createElement("div");
+    row.className = "song rgn";
+    row.id = "rgn_" + r.id;
+    if(r.color) row.style.borderLeftColor = r.color;
+    const n = document.createElement("div"); n.className = "num"; n.textContent = "R" + r.id;
+    const nm = document.createElement("div"); nm.className = "name"; nm.textContent = r.name || "(sem nome)";
+    const t = document.createElement("div"); t.className = "time"; t.textContent = fmt(r.end - r.start);
+    row.append(n, nm, t);
+    row.addEventListener("click", () => {
+      if(Date.now() - sheetClosedAt < 450) return;
+      openRegionSheet(r.id);
+    });
+    box.appendChild(row);
+  });
+}
+
+function showTab(which){
+  tab = which;
+  closeSheetIfOpen();
+  $("tabSet").classList.toggle("on", which === "set");
+  $("tabRgn").classList.toggle("on", which === "rgn");
+  $("list").hidden = which !== "set";
+  $("rlist").hidden = which !== "rgn";
 }
 
 /* acha o item tocando; começa pelo atual e pelo seguinte, para regiões repetidas na setlist */
@@ -313,6 +374,7 @@ function findIndex(p){
 /* "3/10 · 42%": música atual de quantas e quanto do show já passou (pelo tempo) */
 function updateProgress(){
   const el = $("plPos");
+  if(isoRegion()){ el.textContent = " · região avulsa"; return; }
   if(!items.length){ el.textContent = ""; return; }
   if(cur < 0){ el.textContent = " · 0/" + items.length; return; }
   let done = 0;
@@ -323,13 +385,21 @@ function updateProgress(){
   el.textContent = " · " + (cur + 1) + "/" + items.length + " · " + pct + "%";
 }
 
+function isoRegion(){
+  if(isolatedId === null || !isPlaying()) return null;
+  return regions.find(r => r.id === isolatedId) || null;
+}
+
 function tick(){
   $("pos").textContent = posStr;
-  const idx = findIndex(pos);
+  const iso = isoRegion();
+  if(wasIso && !iso) cur = -2;           // saiu da região avulsa: redesenha o cabeçalho
+  wasIso = !!iso;
+  const idx = iso ? -1 : findIndex(pos);
 
   if(idx !== cur){
     cur = idx;
-    document.querySelectorAll(".song").forEach((e, i) => {
+    document.querySelectorAll("#list .song").forEach((e, i) => {
       e.classList.toggle("active", i === cur);
       e.classList.toggle("next", cur >= 0 && i === cur + 1);
       e.classList.toggle("done", cur >= 0 && i < cur);
@@ -356,13 +426,26 @@ function tick(){
     $("showLeft").textContent = data && data.ok ? fmt(data.total) : "--:--";
   }
 
+  // região avulsa (fora da playlist): o cabeçalho mostra ela
+  document.querySelectorAll(".rgn").forEach(e => e.classList.toggle("iso", !!iso && e.id === "rgn_" + iso.id));
+  $("stateLabel").classList.toggle("iso", !!iso);
+  if(iso){
+    const len = iso.end - iso.start, left = iso.end - pos;
+    $("current").textContent = iso.name || ("Região " + iso.id);
+    $("remain").firstChild.nodeValue = fmt(left);
+    $("barFill").style.width = Math.min(100, Math.max(0, (pos - iso.start) / len * 100)) + "%";
+    $("showLeft").textContent = "--:--";
+    $("next").querySelector("b").textContent = "para no fim da região";
+  }
+
   updateProgress();
   const playing = isPlaying();
-  $("btnPlay").classList.toggle("playing", playing);
-  $("stateLabel").textContent = playing ? "Tocando agora" : (playState === 2 || playState === 6) ? "Pausado em" : "Parado em";
+  $("btnPlay").classList.toggle("playing", playing && !iso);
+  $("stateLabel").textContent = iso ? "Região avulsa (fora da playlist)"
+    : playing ? "Tocando agora" : (playState === 2 || playState === 6) ? "Pausado em" : "Parado em";
   $("playHint").textContent = playing ? "segure p/ reiniciar" : "toque";
-  $("btnNext").disabled = !playing;
-  $("btnPrev").disabled = !playing;
+  $("btnNext").disabled = !playing || !!iso;
+  $("btnPrev").disabled = !playing || !!iso;
 }
 
 /* ====== RESPOSTAS DO REAPER ====== */
@@ -379,6 +462,10 @@ function wwr_onreply(results){
     } else if(t[0] === "EXTSTATE" && t[1] === SECTION){
       const v = unesc(t.slice(3).join("\t"));
       if(t[2] === "playlist") onPlaylist(v);
+      else if(t[2] === "isolated"){
+        const id = v === "" ? null : parseInt(v, 10);
+        if(id !== isolatedId){ isolatedId = isNaN(id) ? null : id; tick(); }
+      }
       else if(t[2] === "beat" && v !== lastBeat){ lastBeat = v; lastBeatAt = Date.now(); }
       else if(t[2] === "jump" && v !== lastJump){
         // salto feito por qualquer tablet/celular conectado
@@ -417,7 +504,7 @@ const serviceAlive = () => lastBeat !== null && Date.now() - lastBeatAt < 4000;
 function sendCmd(c){ wwr_req("SET/EXTSTATE/" + SECTION + "/cmd/" + c); }
 
 function skip(dir){
-  if(!isPlaying()) return;
+  if(!isPlaying() || isoRegion()) return;
   if(cur >= 0){
     const idx = cur + dir;
     if(idx >= 0 && idx < items.length) pending = { idx, until: Date.now() + 4000 };
@@ -426,27 +513,46 @@ function skip(dir){
   else wwr_req(dir > 0 ? ACTIONS.next : ACTIONS.prev);        // reserva: ação direta do SWS
 }
 
+function setSheetMode(mode){
+  sheetMode = mode;
+  $("sheetTitle").textContent = mode === "rgn" ? "Tocar só esta região" : "Tocar a partir de";
+  $("sheetGoLabel").textContent = mode === "rgn" ? "▶ TOCAR REGIÃO" : "▶ TOCAR DAQUI";
+  $("sheetNote").classList.toggle("show", mode === "rgn");
+}
 function openSheet(i){
   if(!items[i]) return;
   picked = i;
-  document.querySelectorAll(".song").forEach((e, k) => e.classList.toggle("picked", k === i));
+  setSheetMode("set");
+  document.querySelectorAll(".song").forEach(e => e.classList.toggle("picked", e.id === "song_" + i));
   $("sheetName").textContent = (i + 1) + ". " + items[i].name;
   $("sheetWarn").classList.toggle("show", !!(data && data.dirty));
   $("sheet").classList.add("open");
-  makeRoomForSheet(i);
+  makeRoomForSheet("song_" + i);
+}
+function openRegionSheet(id){
+  const r = regions.find(x => x.id === id);
+  if(!r) return;
+  picked = id;
+  setSheetMode("rgn");
+  document.querySelectorAll(".song").forEach(e => e.classList.toggle("picked", e.id === "rgn_" + id));
+  $("sheetName").textContent = "R" + id + " · " + (r.name || "(sem nome)");
+  $("sheetWarn").classList.remove("show");
+  $("sheet").classList.add("open");
+  makeRoomForSheet("rgn_" + id);
 }
 
 /* Enquanto o painel está aberto, a lista ganha um espaço embaixo do tamanho do
    painel: assim dá para rolar até as últimas músicas, e a escolhida fica visível. */
-function makeRoomForSheet(i){
-  const list = $("list"), sheet = $("sheet");
+function activeList(){ return $(tab === "rgn" ? "rlist" : "list"); }
+function makeRoomForSheet(rowId){
+  const list = activeList(), sheet = $("sheet");
   list.style.paddingBottom = "";
   const L = list.getBoundingClientRect();
   const sheetTop = window.innerHeight - sheet.getBoundingClientRect().height;
   // só o pedaço da lista que o painel cobre
   const overlap = Math.max(0, Math.ceil(L.bottom - sheetTop));
   list.style.paddingBottom = overlap + "px";
-  const row = $("song_" + i);
+  const row = $(rowId);
   if(!row) return;
   const r = row.getBoundingClientRect();
   const visibleBottom = Math.min(L.bottom, sheetTop);
@@ -460,12 +566,15 @@ function closeSheet(){
   document.querySelectorAll(".song.picked").forEach(e => e.classList.remove("picked"));
   $("sheet").classList.remove("open");
   $("list").style.paddingBottom = "";
+  $("rlist").style.paddingBottom = "";
 }
+function closeSheetIfOpen(){ if($("sheet").classList.contains("open")) closeSheet(); }
 function playFromPicked(){
-  const i = picked;
+  const i = picked, mode = sheetMode;
   closeSheet();
   if(i < 0) return;
-  if(!serviceAlive()){ setStatus("err", "Serviço do REAPER não está rodando: não dá para tocar a partir de uma música."); return; }
+  if(!serviceAlive()){ setStatus("err", "Serviço do REAPER não está rodando: não dá para fazer isso agora."); return; }
+  if(mode === "rgn"){ sendCmd("playregion:" + i); return; }
   pending = { idx: i, until: Date.now() + 4000 };
   sendCmd("playfrom:" + i);
 }
@@ -492,12 +601,15 @@ holdButton($("btnStop"), () => HOLD_MS, () => wwr_req(ACTIONS.stop));
 // INICIAR: toque simples parado; se já está tocando, precisa segurar (evita voltar pra 1ª música sem querer)
 holdButton($("btnPlay"), () => (playState === 1 || playState === 5) ? HOLD_MS : 0, () => {
   if(items.length) pending = { idx: 0, until: Date.now() + 4000 };   // o SWS sempre começa do 1º item
-  wwr_req(ACTIONS.play);
+  if(serviceAlive()) sendCmd("playlist");   // o serviço cancela uma região avulsa antes
+  else wwr_req(ACTIONS.play);
 });
 tap($("btnNext"), () => skip(1));
 tap($("btnPrev"), () => skip(-1));
 holdButton($("sheetGo"), () => HOLD_MS, playFromPicked);
-$("sheetCancel").addEventListener("click", closeSheet);   // no click (não no toque), senão o toque "vaza" para a lista
+$("sheetCancel").addEventListener("click", closeSheet);
+$("tabSet").addEventListener("click", () => showTab("set"));
+$("tabRgn").addEventListener("click", () => showTab("rgn"));   // no click (não no toque), senão o toque "vaza" para a lista
 tap($("btnRefresh"), () => {
   wwr_req("SET/EXTSTATE/" + SECTION + "/cmd/refresh");
   setTimeout(() => wwr_req("GET/EXTSTATE/" + SECTION + "/playlist"), 400);
@@ -510,6 +622,7 @@ window.onload = () => {
   wwr_req_recur("GET/EXTSTATE/" + SECTION + "/playlist", 500);
   wwr_req_recur("GET/EXTSTATE/" + SECTION + "/beat", 1000);
   wwr_req_recur("GET/EXTSTATE/" + SECTION + "/jump", 300);
+  wwr_req_recur("GET/EXTSTATE/" + SECTION + "/isolated", 300);
   wwr_start();
 };
 

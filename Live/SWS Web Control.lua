@@ -1,6 +1,6 @@
 -- @description SWS Web Control - setlist web (celular/tablet) para a Region Playlist do SWS
 -- @author Thalles
--- @version 2.2.2
+-- @version 2.3.0
 -- @provides
 --   playlist.html
 --   qrencode.lua
@@ -236,11 +236,23 @@ local function buildJSON(proj, path)
         cache.readAt or "",
         SWS.ok and "true" or "false")
 
+    -- todas as regiões do projeto (aba "Regiões" da página), em ordem de posição
+    local regions = getRegions(proj)
+    local list = {}
+    for idx, r in pairs(regions) do list[#list + 1] = { idx = idx, r = r } end
+    table.sort(list, function(a, b) return a.r.start < b.r.start end)
+    local rj = {}
+    for _, e in ipairs(list) do
+        rj[#rj + 1] = string.format('{"id":%d,"name":"%s","start":%s,"end":%s,"color":%s}',
+            e.idx, enc(e.r.name), num(e.r.start), num(e.r.finish),
+            e.r.color and ('"' .. e.r.color .. '"') or "null")
+    end
+    head = head .. ',"regions":[' .. table.concat(rj, ",") .. ']'
+
     if cache.err then
         return string.format('{"ok":false,%s,"error":"%s"}', head, enc(cache.err))
     end
 
-    local regions = getRegions(proj)
     local items, missing, total = {}, {}, 0
 
     -- Mesma regra do SWS para item válido: região existe e repetição ~= 0.
@@ -323,9 +335,47 @@ local function playFrom(index)            -- index começa em 0
     announceJump(index)
 end
 
+-------------------------------------------------
+-- REGIÃO AVULSA (fora da playlist): para o que estiver tocando, toca a região
+-- do começo e para sozinho no fim dela. Útil para testar o som antes do show.
+-------------------------------------------------
+
+local isolated          -- { id, start, finish } enquanto uma região avulsa toca
+local STOP_EARLY = 0.04 -- para um pouco antes do fim (o loop roda ~30x/s)
+
+local function clearIsolated()
+    if isolated then
+        isolated = nil
+        reaper.DeleteExtState(SECTION, "isolated", false)
+    end
+end
+
+local function playRegion(id)
+    local r = getRegions(0)[id]
+    if not r then return end
+    reaper.Main_OnCommand(1016, 0)                     -- Stop (encerra também a playlist do SWS)
+    reaper.SetEditCurPos(r.start, false, false)
+    reaper.Main_OnCommand(1007, 0)                     -- Play a partir do cursor
+    isolated = { id = id, start = r.start, finish = r.finish }
+    reaper.SetExtState(SECTION, "isolated", tostring(id), false)
+end
+
+local function watchIsolated()
+    if not isolated then return end
+    if (reaper.GetPlayState() & 1) ~= 1 then clearIsolated(); return end
+    local pos = reaper.GetPlayPosition()
+    if pos >= isolated.finish - STOP_EARLY then
+        reaper.Main_OnCommand(1016, 0)
+        clearIsolated()
+    elseif pos < isolated.start - 0.5 or pos > isolated.finish + 0.5 then
+        clearIsolated()                                -- alguém mudou a posição: não interfere mais
+    end
+end
+
 local function skip(dir)
     if not SWS.ok then return end
     if (reaper.GetPlayState() & 1) ~= 1 then return end   -- parado: não começa o show sem querer
+    if isolated then return end                           -- região avulsa: próxima/anterior não valem
     local id
     if dir > 0 then id = SWS.nextCur or SWS.next else id = SWS.prevCur or SWS.prev end
     if SKIP_IMMEDIATE then
@@ -390,6 +440,24 @@ end
 local lastKey, lastDirty, lastState, lastJSON
 local lastCheck, lastBeat, beat = 0, 0, 0
 
+-- Atualização sem reiniciar o REAPER: se este arquivo mudar no disco (ReaPack,
+-- instalador), o serviço carrega a versão nova e encerra a antiga.
+local selfSource = readFile(SCRIPT_PATH)
+local lastSelfCheck = 0
+local function reloadIfUpdated(now)
+    if now - lastSelfCheck < 3 then return false end
+    lastSelfCheck = now
+    local src = readFile(SCRIPT_PATH)
+    if not src or src == selfSource then return false end
+    selfSource = src
+    reaper.DeleteExtState(SECTION, "alive_t", false)   -- deixa a versão nova assumir
+    SWS_WEB_CONTROL_STARTUP = true                      -- sem janelas de mensagem
+    local ok, err = pcall(dofile, SCRIPT_PATH)
+    if ok then return true end                          -- a nova já está rodando
+    reaper.ShowConsoleMsg("SWS Web Control: falha ao carregar a versão nova: " .. tostring(err) .. "\n")
+    return false                                        -- continua com a versão atual
+end
+
 local function publish(proj, path)
     local json = buildJSON(proj, path)
     if json ~= lastJSON then
@@ -414,12 +482,17 @@ local function loop()
     if c ~= "" then
         reaper.DeleteExtState(SECTION, "cmd", false)
         local from = c:match("^playfrom:(%d+)$")
-        if from then playFrom(tonumber(from))
+        local rgn  = c:match("^playregion:(%d+)$")
+        if from then clearIsolated(); playFrom(tonumber(from))
+        elseif rgn then playRegion(tonumber(rgn))
+        elseif c == "playlist" then clearIsolated(); if SWS.ok then reaper.Main_OnCommand(SWS.play, 0) end
         elseif c == "next" then skip(1)
         elseif c == "prev" then skip(-1)
         elseif c == "refresh" then wantRefresh = true; lastCheck = 0
         end
     end
+
+    watchIsolated()
 
     if now - lastCheck >= CHECK_INTERVAL then
         lastCheck = now
@@ -444,6 +517,7 @@ local function loop()
         lastKey, lastDirty, lastState = key, dirty, state
     end
 
+    if reloadIfUpdated(now) then return end
     reaper.defer(loop)
 end
 

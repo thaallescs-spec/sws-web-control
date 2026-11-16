@@ -5,8 +5,8 @@
       <metadata>
         <link rel="website">https://github.com/thaallescs-spec/sws-web-control</link>
       </metadata>
-      <version name="2.2.2" author="Thalles" time="2026-11-16T14:12:29Z">
-        <changelog><![CDATA[Rodapé mostra só o nome da playlist e o andamento (música 3/10 e % do show). Visual: INICIAR fica discreto com o show tocando, letras maiores no tablet deitado, ícones maiores e botão Atualizar compacto no celular.]]></changelog>
+      <version name="2.3.0" author="Thalles" time="2026-11-16T14:19:40Z">
+        <changelog><![CDATA[Nova aba 'Regiões do projeto': toque numa região e segure TOCAR REGIÃO para tocar só ela, fora da playlist (para no fim dela). O serviço agora carrega atualizações sozinho, sem reiniciar o REAPER.]]></changelog>
         <source main="main">https://raw.githubusercontent.com/thaallescs-spec/sws-web-control/main/Live/SWS%20Web%20Control.lua</source>
         <source file="playlist.html">https://raw.githubusercontent.com/thaallescs-spec/sws-web-control/main/Live/playlist.html</source>
         <source file="qrencode.lua">https://raw.githubusercontent.com/thaallescs-spec/sws-web-control/main/Live/qrencode.lua</source>

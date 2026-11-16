@@ -58,6 +58,9 @@ As atualizações aparecem no ReaPack (Extensions > ReaPack > Synchronize packag
 | Próxima / anterior | Pulam na hora; só funcionam com o show tocando |
 | Tocar a partir de uma música | Toque na música da lista e segure **TOCAR DAQUI** |
 | Atualizar a setlist | Salve o projeto (Ctrl+S / Cmd+S): a página atualiza sozinha |
+| Testar uma região fora da playlist | Aba **Regiões do projeto** → toque na região → segure **TOCAR REGIÃO**. Toca só ela e para no fim; o topo da tela fica laranja ("Região avulsa"). **INICIAR** cancela e começa o show |
+
+Atualizações do script (pelo ReaPack ou pelo instalador) entram sozinhas em até 3 segundos, sem reiniciar o REAPER.
 
 A setlist é lida do projeto **salvo**, porque o SWS não oferece a playlist de outra forma. Quando há alterações não salvas, o rodapé mostra "⚠ não salvo".
 
