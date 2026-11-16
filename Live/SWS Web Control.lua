@@ -1,6 +1,6 @@
 -- @description SWS Web Control - setlist web (celular/tablet) para a Region Playlist do SWS
 -- @author Thalles
--- @version 2.2.0
+-- @version 2.2.1
 -- @provides
 --   playlist.html
 --   qrencode.lua

@@ -260,7 +260,11 @@ function render(){
     }
     const t = document.createElement("div"); t.className = "time"; t.textContent = fmt(s.duration);
     row.appendChild(t);
-    row.addEventListener("click", () => openSheet(i));
+    row.addEventListener("click", () => {
+      // o mesmo toque que fechou o painel não pode reabrir na música que estava embaixo
+      if(Date.now() - sheetClosedAt < 450) return;
+      openSheet(i);
+    });
     list.appendChild(row);
   });
 
@@ -403,11 +407,33 @@ function openSheet(i){
   $("sheetName").textContent = (i + 1) + ". " + items[i].name;
   $("sheetWarn").classList.toggle("show", !!(data && data.dirty));
   $("sheet").classList.add("open");
+  makeRoomForSheet(i);
 }
+
+/* Enquanto o painel está aberto, a lista ganha um espaço embaixo do tamanho do
+   painel: assim dá para rolar até as últimas músicas, e a escolhida fica visível. */
+function makeRoomForSheet(i){
+  const list = $("list"), sheet = $("sheet");
+  list.style.paddingBottom = "";
+  const L = list.getBoundingClientRect();
+  const sheetTop = window.innerHeight - sheet.getBoundingClientRect().height;
+  // só o pedaço da lista que o painel cobre
+  const overlap = Math.max(0, Math.ceil(L.bottom - sheetTop));
+  list.style.paddingBottom = overlap + "px";
+  const row = $("song_" + i);
+  if(!row) return;
+  const r = row.getBoundingClientRect();
+  const visibleBottom = Math.min(L.bottom, sheetTop);
+  if(r.bottom > visibleBottom - 8) list.scrollTop += r.bottom - visibleBottom + 16;
+  else if(r.top < L.top) list.scrollTop -= L.top - r.top + 8;
+}
+let sheetClosedAt = 0;
 function closeSheet(){
   picked = -1;
+  sheetClosedAt = Date.now();
   document.querySelectorAll(".song.picked").forEach(e => e.classList.remove("picked"));
   $("sheet").classList.remove("open");
+  $("list").style.paddingBottom = "";
 }
 function playFromPicked(){
   const i = picked;
@@ -445,7 +471,7 @@ holdButton($("btnPlay"), () => (playState === 1 || playState === 5) ? HOLD_MS : 
 tap($("btnNext"), () => skip(1));
 tap($("btnPrev"), () => skip(-1));
 holdButton($("sheetGo"), () => HOLD_MS, playFromPicked);
-tap($("sheetCancel"), closeSheet);
+$("sheetCancel").addEventListener("click", closeSheet);   // no click (não no toque), senão o toque "vaza" para a lista
 tap($("btnRefresh"), () => {
   wwr_req("SET/EXTSTATE/" + SECTION + "/cmd/refresh");
   setTimeout(() => wwr_req("GET/EXTSTATE/" + SECTION + "/playlist"), 400);
