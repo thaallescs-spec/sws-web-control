@@ -10,7 +10,29 @@ Mostra a música atual, o tempo restante da música e do show e a próxima músi
 - Extensão [SWS](https://www.sws-extension.org)
 - Um projeto com uma Region Playlist do SWS (Extensions > SWS/S&M > Region Playlist)
 
-## Instalação pelo ReaPack (Windows e Mac, recomendada)
+## Instalação com 1 clique
+
+| Sistema | Baixe | Depois |
+|---|---|---|
+| **Windows** | [Instalar SWS Web Control.cmd](https://github.com/thaallescs-spec/sws-web-control/raw/main/dist/Instalar%20SWS%20Web%20Control.cmd) | Dois cliques no arquivo |
+| **Mac** | [SWS-Web-Control-Mac.zip](https://github.com/thaallescs-spec/sws-web-control/raw/main/dist/SWS-Web-Control-Mac.zip) | Abra o zip e dê dois cliques em **Instalar SWS Web Control.command** |
+
+O instalador:
+- espera você fechar o REAPER, se ele estiver aberto (salve o projeto antes);
+- copia o script, a página e o QR code;
+- faz o SWS Web Control abrir junto com o REAPER;
+- ativa a interface web do REAPER na porta 8080 (ou na próxima livre), com backup do `reaper.ini`;
+- abre o REAPER de novo e mostra o endereço para o celular.
+
+Depois, rode a ação **SWS Web Control - QR code** e aponte a câmera do celular. O celular precisa estar no mesmo Wi-Fi do computador.
+
+**Avisos de segurança na primeira vez.** O instalador não tem assinatura digital paga, por isso o sistema avisa:
+- **Windows:** "O Windows protegeu o computador" → **Mais informações** → **Executar assim mesmo**. Se o navegador avisar sobre o download, escolha **Manter**.
+- **Mac:** "não pode ser aberto porque é de um desenvolvedor não identificado" → **Ajustes do Sistema → Privacidade e Segurança** → **Abrir Mesmo Assim**. Depois, se perguntar se o REAPER pode aceitar conexões de rede, clique em **Permitir**.
+
+Para desinstalar: **Desinstalar SWS Web Control** ([Windows](https://github.com/thaallescs-spec/sws-web-control/raw/main/dist/Desinstalar%20SWS%20Web%20Control.cmd); no Mac está dentro do mesmo zip).
+
+## Instalação pelo ReaPack (Windows e Mac, com atualização automática)
 
 1. No REAPER: **Extensions > ReaPack > Import repositories...** e cole:
    ```
@@ -26,12 +48,6 @@ Mostra a música atual, o tempo restante da música e do show e a próxima músi
 > **Mac:** se aparecer o aviso perguntando se o REAPER pode aceitar conexões de rede, clique em **Permitir**.
 
 As atualizações aparecem no ReaPack (Extensions > ReaPack > Synchronize packages).
-
-## Instalação no Windows sem ReaPack
-
-Baixe [`dist/SWS-Web-Control-Windows.zip`](dist/SWS-Web-Control-Windows.zip) e descompacte. Feche o REAPER e dê dois cliques em **Instalar.bat**. Esse instalador já configura a interface web.
-
-O Windows vai mostrar o aviso de "fornecedor desconhecido": o instalador não é assinado. Clique em **Executar**.
 
 ## Uso
 
@@ -60,6 +76,6 @@ python tools/publicar.py 2.1.1 "O que mudou"
 git add -A && git commit -m "v2.1.1" && git push
 ```
 
-O script atualiza o `index.xml` do ReaPack, o `@version` do script principal e o `dist/SWS-Web-Control-Windows.zip`.
+O script atualiza o `index.xml` do ReaPack, o `@version` do script principal e os instaladores em `dist/` (Windows e Mac).
 
 O QR code usa a biblioteca [luaqrcode](https://github.com/speedata/luaqrcode) (licença BSD, ver `Live/qrencode-LICENSE.md`).

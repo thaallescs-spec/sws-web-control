@@ -8,7 +8,10 @@ Uso (na raiz do repositório):
 O número de versão também é gravado no cabeçalho @version do script principal.
 O ReaPack de quem já instalou mostra a atualização na próxima sincronização.
 """
+import base64
 import datetime
+import io
+import tarfile
 import pathlib
 import re
 import sys
@@ -68,6 +71,74 @@ def build_windows_zip():
     return out
 
 
+CMD_HEADER = r"""<# : Instalador do SWS Web Control - de dois cliques neste arquivo
+@echo off
+setlocal
+title SWS Web Control - {titulo}
+set "SWS_SELF=%~f0"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ([IO.File]::ReadAllText($env:SWS_SELF, [Text.Encoding]::UTF8))"
+exit /b
+#>
+# ---------------- daqui para baixo e PowerShell ----------------
+$tmp = Join-Path $env:TEMP ("sws-web-control-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $tmp | Out-Null
+$arquivos = @{{
+{arquivos}
+}}
+foreach ($nome in $arquivos.Keys) {{
+    [IO.File]::WriteAllBytes((Join-Path $tmp $nome), [Convert]::FromBase64String($arquivos[$nome]))
+}}
+$instalador = [IO.File]::ReadAllText((Join-Path $tmp "instalador.ps1"), [Text.Encoding]::UTF8)
+& ([scriptblock]::Create($instalador)) -Src $tmp {args}
+"""
+
+
+def live_files():
+    return [f for f in sorted(LIVE.iterdir()) if f.is_file()]
+
+
+def build_windows_single(dist: pathlib.Path):
+    """Instalador de arquivo único: um .cmd com os arquivos embutidos em base64."""
+    files = live_files() + [ROOT / "instalador-windows" / "instalador.ps1"]
+    linhas = []
+    for f in files:
+        b64 = base64.b64encode(f.read_bytes()).decode("ascii")
+        linhas.append(f"    '{f.name}' = '{b64}'")
+    corpo = "\n".join(linhas)
+    saidas = []
+    for titulo, nome, args in (("Instalar", "Instalar SWS Web Control.cmd", ""),
+                               ("Desinstalar", "Desinstalar SWS Web Control.cmd", "-Desinstalar")):
+        txt = CMD_HEADER.format(titulo=titulo, arquivos=corpo, args=args)
+        out = dist / nome
+        out.write_bytes(txt.replace("\r\n", "\n").replace("\n", "\r\n").encode("ascii"))
+        saidas.append(out)
+    return saidas
+
+
+def build_mac_zip(dist: pathlib.Path):
+    """Zip com o .command (executável) e os arquivos embutidos em tar.gz/base64."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for f in live_files():
+            tar.add(f, arcname=f.name)
+    payload = base64.encodebytes(buf.getvalue()).decode("ascii")
+    script = (ROOT / "instalador-mac" / "instalador.command").read_text(encoding="utf-8")
+    assert script.rstrip("\n").endswith("__PAYLOAD__")
+    instalar = script.rstrip("\n") + "\n" + payload
+    desinstalar = ('#!/bin/bash\n# Remove o SWS Web Control (precisa estar na mesma pasta do instalador)\n'
+                   'exec "$(dirname "$0")/Instalar SWS Web Control.command" --desinstalar\n')
+    out = dist / "SWS-Web-Control-Mac.zip"
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for nome, conteudo in (("Instalar SWS Web Control.command", instalar),
+                               ("Desinstalar SWS Web Control.command", desinstalar)):
+            info = zipfile.ZipInfo(f"SWS Web Control/{nome}", date_time=datetime.datetime.now().timetuple()[:6])
+            info.external_attr = (0o100755 << 16)      # executável
+            info.create_system = 3                     # Unix, para o macOS respeitar a permissão
+            info.compress_type = zipfile.ZIP_DEFLATED
+            z.writestr(info, conteudo.encode("utf-8"))
+    return out
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -106,9 +177,12 @@ def main():
 </index>
 '''
     (ROOT / "index.xml").write_text(xml, encoding="utf-8", newline="\n")
-    z = build_windows_zip()
+    dist = ROOT / "dist"
+    dist.mkdir(exist_ok=True)
+    extras = build_windows_single(dist) + [build_mac_zip(dist)]
     print(f"index.xml gerado: versão {version}, {len(files) + 1} arquivos")
-    print(f"instalador Windows: {z.relative_to(ROOT)}")
+    for e in extras:
+        print(f"instalador: {e.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

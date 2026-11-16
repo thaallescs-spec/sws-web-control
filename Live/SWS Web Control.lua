@@ -1,6 +1,6 @@
 -- @description SWS Web Control - setlist web (celular/tablet) para a Region Playlist do SWS
 -- @author Thalles
--- @version 2.1.0
+-- @version 2.2.0
 -- @provides
 --   playlist.html
 --   qrencode.lua
@@ -350,9 +350,18 @@ installStartup(msgs)
 
 -- Quando instalado pelo instalador do Windows, o script nunca passou pelo
 -- "Load ReaScript": registra uma vez na lista de ações para dar pra achar lá.
-if FROM_STARTUP and reaper.AddRemoveReaScript and reaper.GetExtState(SECTION, "registered") ~= SCRIPT_PATH then
-    if reaper.AddRemoveReaScript(true, 0, SCRIPT_PATH, true) ~= 0 then
-        reaper.SetExtState(SECTION, "registered", SCRIPT_PATH, true)
+-- Vale para este script e para a ação do QR code que vem junto.
+if FROM_STARTUP and reaper.AddRemoveReaScript then
+    local acoes = {
+        registered    = SCRIPT_PATH,
+        registered_qr = SCRIPT_DIR .. SEP .. "SWS Web Control - QR code.lua",
+    }
+    for chave, caminho in pairs(acoes) do
+        if reaper.file_exists(caminho) and reaper.GetExtState(SECTION, chave) ~= caminho then
+            if reaper.AddRemoveReaScript(true, 0, caminho, true) ~= 0 then
+                reaper.SetExtState(SECTION, chave, caminho, true)
+            end
+        end
     end
 end
 

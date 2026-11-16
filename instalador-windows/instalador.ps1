@@ -1,8 +1,9 @@
 # Instalador do SWS Web Control (setlist web para REAPER + SWS Region Playlist)
-# Uso: dê dois cliques em "Instalar.bat" (ou "Desinstalar.bat").
+# Uso: dê dois cliques em "Instalar SWS Web Control.cmd" (ou em Instalar.bat / Desinstalar.bat).
 param(
     [switch]$Desinstalar,
-    [string]$Reaper = ""      # pasta de recursos do REAPER (opcional; detecta sozinho)
+    [string]$Reaper = "",     # pasta de recursos do REAPER (opcional; detecta sozinho)
+    [string]$Src = ""         # pasta com os arquivos a instalar (o instalador de arquivo único passa uma pasta temporária)
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,7 +16,7 @@ $BEGIN  = "-- >>> SWS Web Control (auto) >>>"
 $END    = "-- <<< SWS Web Control (auto) <<<"
 $PORTA_PADRAO = 8080
 
-$SRC    = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $Src) { $Src = Split-Path -Parent $MyInvocation.MyCommand.Path }
 $UTF8   = New-Object Text.UTF8Encoding($false)
 $LATIN1 = [Text.Encoding]::GetEncoding(28591)   # lê/grava o reaper.ini byte a byte, sem estragar acentos
 
@@ -58,9 +59,14 @@ Ok "REAPER: $Reaper"
 # ------------------------------------------------------------------
 # 2. REAPER precisa estar fechado (ele regrava o reaper.ini ao sair)
 # ------------------------------------------------------------------
-while (Get-Process -Name "reaper" -ErrorAction SilentlyContinue) {
-    Aviso "O REAPER está aberto. Salve o projeto, feche o REAPER e aperte ENTER."
-    [void](Read-Host)
+$reaperExe = $null
+$proc = Get-Process -Name "reaper" -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($proc) {
+    try { $reaperExe = $proc.Path } catch {}
+    Aviso "O REAPER está aberto. Salve o seu projeto e feche o REAPER: a instalação continua sozinha."
+    while (Get-Process -Name "reaper" -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 700 }
+    Start-Sleep -Seconds 1     # tempo para o REAPER terminar de gravar o reaper.ini
+    Ok "REAPER fechado"
 }
 
 $DEST    = Join-Path $Reaper ("Scripts\" + $NOME)
@@ -197,4 +203,14 @@ Write-Host "     (neste computador: http://localhost:$porta/$HTML)"
 Write-Host "  3. Para abrir no celular sem digitar: no REAPER, rode a ação 'SWS Web Control - QR code'."
 Write-Host ""
 Write-Host "  Se o Windows perguntar sobre o firewall ao abrir o REAPER, permita em 'Redes privadas'."
+
+# abre o REAPER de novo: o SWS Web Control já inicia junto
+$candidatos = @($reaperExe, (Join-Path $Reaper "reaper.exe"),
+    "$env:ProgramFiles\REAPER (x64)\reaper.exe", "$env:ProgramFiles\REAPER\reaper.exe",
+    "${env:ProgramFiles(x86)}\REAPER\reaper.exe") | Where-Object { $_ -and (Test-Path $_) }
+if ($candidatos) {
+    Start-Process -FilePath @($candidatos)[0]
+    Write-Host ""
+    Ok "Abrindo o REAPER..."
+}
 Fim 0
